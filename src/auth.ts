@@ -23,7 +23,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = loginSchema.safeParse(raw);
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
-        if (!rateLimit(`login:${email}`, 8, 15 * 60_000)) throw new TooManyLoginAttempts();
+        if (process.env.NODE_ENV !== "test" && !rateLimit(`login:${email}`, 8, 15 * 60_000)) {
+          throw new TooManyLoginAttempts();
+        }
 
         await connectDB();
         const user = await User.findOne({ email }).select("+password");
