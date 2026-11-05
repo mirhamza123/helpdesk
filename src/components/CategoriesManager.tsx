@@ -1,32 +1,33 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 import { PRIORITIES, type Priority } from "@/lib/constants";
 import { categorySchema } from "@/lib/validators";
 import { api } from "@/lib/client";
-import { Alert, EmptyState, PriorityBadge } from "./ui";
+import { EmptyState, PriorityBadge } from "./ui";
 
 type Cat = { id: string; name: string; description: string; defaultPriority: Priority };
 
 export function CategoriesManager({ categories }: { categories: Cat[] }) {
   const router = useRouter();
   const [editing, setEditing] = useState<string | null>(null);
-  const [error, setError] = useState("");
 
   async function save(e: React.FormEvent<HTMLFormElement>, id?: string) {
     e.preventDefault();
     const form = e.currentTarget;
     const parsed = categorySchema.safeParse(Object.fromEntries(new FormData(form)));
-    if (!parsed.success) return setError(parsed.error.issues[0].message);
-    setError("");
+    if (!parsed.success) return toast.error(parsed.error.issues[0].message);
     const res = id ? await api(`/api/categories/${id}`, "PATCH", parsed.data) : await api("/api/categories", "POST", parsed.data);
-    if (!res.ok) return setError(res.error);
+    if (!res.ok) return toast.error(res.error);
+    toast.success(id ? "Category updated." : "Category added.");
     form.reset(); setEditing(null); router.refresh();
   }
   async function remove(id: string) {
     if (!confirm("Delete this category?")) return;
     const res = await api(`/api/categories/${id}`, "DELETE");
-    if (!res.ok) setError(res.error);
+    if (!res.ok) return toast.error(res.error);
+    toast.success("Category deleted.");
     router.refresh();
   }
   const fields = (c?: Cat) => (
@@ -39,7 +40,6 @@ export function CategoriesManager({ categories }: { categories: Cat[] }) {
   return (
     <div className="space-y-6">
       <form onSubmit={(e) => save(e)} className="panel grid gap-3 p-4 sm:grid-cols-4">{fields()}<button className="btn-primary">Add category</button></form>
-      {error && <Alert>{error}</Alert>}
       <div className="panel divide-y divide-ink-100">
         {categories.length === 0 ? <EmptyState title="No categories yet" hint="Add one above so users can file tickets." /> : categories.map((c) =>
           editing === c.id ? (

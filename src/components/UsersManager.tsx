@@ -1,16 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 import { ROLES, type Role } from "@/lib/constants";
 import { adminUserCreateSchema } from "@/lib/validators";
 import { api } from "@/lib/client";
 import type { UserRow } from "@/lib/users";
 import { formatDate } from "@/lib/utils";
-import { Alert, EmptyState } from "./ui";
+import { EmptyState } from "./ui";
 
 export function UsersManager({ users, currentUserId }: { users: UserRow[]; currentUserId: string }) {
   const router = useRouter();
-  const [error, setError] = useState("");
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
 
@@ -18,17 +18,21 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
     e.preventDefault();
     const form = e.currentTarget;
     const parsed = adminUserCreateSchema.safeParse(Object.fromEntries(new FormData(form)));
-    if (!parsed.success) return setErrors(parsed.error.flatten().fieldErrors);
-    setErrors({}); setError(""); setBusy(true);
+    if (!parsed.success) {
+      setErrors(parsed.error.flatten().fieldErrors);
+      return toast.error(parsed.error.issues[0].message);
+    }
+    setErrors({}); setBusy(true);
     const res = await api("/api/admin/users", "POST", parsed.data);
     setBusy(false);
-    if (!res.ok) return setError(res.error);
+    if (!res.ok) return toast.error(res.error);
+    toast.success("Account created.");
     form.reset(); router.refresh();
   }
-  async function update(id: string, body: object) {
-    setError("");
+  async function update(id: string, body: object, successMessage: string) {
     const res = await api(`/api/admin/users/${id}`, "PATCH", body);
-    if (!res.ok) setError(res.error);
+    if (!res.ok) return toast.error(res.error);
+    toast.success(successMessage);
     router.refresh();
   }
   const e = (k: string) => errors[k]?.[0] && <p className="field-error">{errors[k][0]}</p>;
@@ -42,7 +46,6 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
         <div><label className="label" htmlFor="ro">Role</label><select id="ro" name="role" defaultValue="agent" className="input">{ROLES.map((r) => <option key={r}>{r}</option>)}</select></div>
         <div className="flex items-end"><button className="btn-primary w-full" disabled={busy}>Add account</button></div>
       </form>
-      {error && <Alert>{error}</Alert>}
       <div className="panel overflow-x-auto">
         {users.length === 0 ? <EmptyState title="No accounts yet" /> : (
           <table className="w-full min-w-[640px]">
@@ -54,9 +57,9 @@ export function UsersManager({ users, currentUserId }: { users: UserRow[]; curre
                   <tr key={u.id}>
                     <td className="td font-medium">{u.name}{self && <span className="ml-1 text-xs text-ink-500">(you)</span>}</td>
                     <td className="td">{u.email}</td>
-                    <td className="td"><select aria-label={`Role for ${u.name}`} className="input !w-auto !py-1" value={u.role} disabled={self} onChange={(ev) => update(u.id, { role: ev.target.value as Role })}>{ROLES.map((r) => <option key={r}>{r}</option>)}</select></td>
+                    <td className="td"><select aria-label={`Role for ${u.name}`} className="input !w-auto !py-1" value={u.role} disabled={self} onChange={(ev) => update(u.id, { role: ev.target.value as Role }, "User role updated.")}>{ROLES.map((r) => <option key={r}>{r}</option>)}</select></td>
                     <td className="td text-ink-500">{formatDate(u.createdAt)}</td>
-                    <td className="td"><button className={u.active ? "btn-secondary !py-1" : "btn-primary !py-1"} disabled={self} onClick={() => update(u.id, { active: !u.active })}>{u.active ? "Deactivate" : "Activate"}</button></td>
+                    <td className="td"><button className={u.active ? "btn-secondary !py-1" : "btn-primary !py-1"} disabled={self} onClick={() => update(u.id, { active: !u.active }, u.active ? "Account deactivated." : "Account activated.")}>{u.active ? "Deactivate" : "Activate"}</button></td>
                   </tr>
                 );
               })}

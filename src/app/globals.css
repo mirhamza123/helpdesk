@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+.Toastify__toast-container {
+  width: min(24rem, calc(100vw - 2rem));
+}
+
+.Toastify__toast {
+  border-radius: 0.5rem;
+  font-family: inherit;
+}
+
+@media (max-width: 480px) {
+  .Toastify__toast-container--top-right {
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+  }
+}
+
 @layer base {
   html { -webkit-text-size-adjust: 100%; }
   body {

@@ -2,10 +2,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PRIORITIES, type Priority } from "@/lib/constants";
+import { toast } from "react-toastify";
 import { ticketCreateSchema } from "@/lib/validators";
 import { api, uploadFiles, validateFiles } from "@/lib/client";
 import { AttachmentPicker } from "./AttachmentPicker";
-import { Alert } from "./ui";
 
 type Cat = { id: string; name: string; description: string; defaultPriority: Priority };
 
@@ -15,35 +15,41 @@ export function TicketForm({ categories }: { categories: Cat[] }) {
   const [priority, setPriority] = useState<Priority>(categories[0]?.defaultPriority ?? "Medium");
   const [files, setFiles] = useState<File[]>([]);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
-  const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setFormError("");
     const fd = new FormData(e.currentTarget);
     const input = { title: fd.get("title"), description: fd.get("description"), category, priority, attachments: [] };
     const parsed = ticketCreateSchema.safeParse(input);
     const fileErr = validateFiles(files);
     if (!parsed.success || fileErr) {
       setErrors({ ...(parsed.success ? {} : parsed.error.flatten().fieldErrors), ...(fileErr ? { attachments: [fileErr] } : {}) });
-      return;
+      return toast.error(fileErr ?? (parsed.success ? "Invalid ticket details." : parsed.error.issues[0].message));
     }
     setErrors({});
     setBusy(true);
-    const up = await uploadFiles(files);
-    if (up.error) { setBusy(false); return setFormError(up.error); }
-    const res = await api<{ id: string }>("/api/tickets", "POST", { ...parsed.data, attachments: up.urls });
-    setBusy(false);
-    if (!res.ok) { setErrors(res.fieldErrors ?? {}); return setFormError(res.error); }
-    router.push(`/tickets/${res.data.id}`);
-    router.refresh();
+    try {
+      const up = await uploadFiles(files);
+      if (up.error) return toast.error(up.error);
+      const res = await api<{ id: string }>("/api/tickets", "POST", { ...parsed.data, attachments: up.urls });
+      if (!res.ok) {
+        setErrors(res.fieldErrors ?? {});
+        return toast.error(res.error);
+      }
+      toast.success("Ticket created successfully.");
+      router.push(`/tickets/${res.data.id}`);
+      router.refresh();
+    } catch {
+      toast.error("Unable to create your ticket. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const err = (k: string) => errors[k]?.[0] && <p className="field-error">{errors[k][0]}</p>;
   return (
     <form onSubmit={onSubmit} className="panel space-y-4 p-5" noValidate>
-      {formError && <Alert>{formError}</Alert>}
       <div><label className="label" htmlFor="title">Title</label>
         <input id="title" name="title" className="input" maxLength={150} placeholder="Short summary of the problem" />{err("title")}</div>
       <div className="grid gap-4 sm:grid-cols-2">
